@@ -17,4 +17,7 @@ __pycache__/
 # Model checkpoints (these get large too)
 *.pt
 *.pth
-*.ckpt
+*.ckpt2015/
+mels/
+mels_test/
+midi/
