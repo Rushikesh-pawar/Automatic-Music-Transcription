@@ -8,9 +8,9 @@ What has been completed so far:
 - Added `scripts/eda_visualize.py` to produce sample paired visualizations and a dataset analysis report.
 
 Notes:
-- Raw audio and MIDI are expected under `Audio Files/2015/` in this workspace; scripts default to that location.
+- Raw audio and MIDI are under `Audio Files/2015/` in this workspace; scripts default to that location.
 
 Next recommended steps:
 
-- Build a PyTorch/TensorFlow Dataset loader that consumes mel arrays and piano-roll targets.
+- Build a PyTorch Dataset loader that takes mel arrays and piano-roll targets.
 - Split data into train/validation/test sets and prepare data augmentation pipelines.
