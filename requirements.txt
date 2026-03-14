@@ -3,3 +3,5 @@ soundfile
 numpy
 matplotlib
 tqdm
+
+pretty_midi

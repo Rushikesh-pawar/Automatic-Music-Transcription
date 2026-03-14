@@ -2,7 +2,6 @@ import argparse
 from pathlib import Path
 import numpy as np
 import librosa
-import soundfile as sf
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
@@ -29,7 +28,7 @@ def save_mel(mel, out_path, save_png=False):
 
 def main():
     parser = argparse.ArgumentParser(description='Convert audio files to mel spectrograms (log-power).')
-    parser.add_argument('--input-dir', type=Path, default=Path('2015'), help='Input folder containing audio files')
+    parser.add_argument('--input-dir', type=Path, default=Path('Audio Files/2015'), help='Input folder containing audio files (default: Audio Files/2015)')
     parser.add_argument('--output-dir', type=Path, default=Path('mels'), help='Output folder for mel arrays')
     parser.add_argument('--sr', type=int, default=22050)
     parser.add_argument('--n-mels', type=int, default=128)

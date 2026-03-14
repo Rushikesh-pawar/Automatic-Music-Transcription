@@ -1,3 +1,21 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+
+# macOS
+.DS_Store
+
+# Python virtualenv
+venv/
+env/
+
+# Large generated data
+mels/
+pianorolls/
+outputs/
+
+# Jupyter
+.ipynb_checkpoints/
 # Dataset files
 *.wav
 *.mp3
