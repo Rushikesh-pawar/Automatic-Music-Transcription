@@ -7,4 +7,4 @@
 - Average polyphony (notes per frame): 4.596
 - Note density (fraction of active notes): 0.050583
 
-See visualizations in `outputs/visualizations/` and pitch histogram: `outputs/pitch_hist.png`.
+
