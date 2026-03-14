@@ -9,9 +9,6 @@ __pycache__/
 venv/
 env/
 
-# Large generated data
-# Note: `mels/`, `pianorolls/`, and `outputs/` are tracked now (placeholders present)
-
 # Jupyter
 .ipynb_checkpoints/
 # Dataset files
@@ -30,7 +27,7 @@ __pycache__/
 # Jupyter checkpoints
 .ipynb_checkpoints/
 
-# Model checkpoints (these get large too)
+# Model checkpoints 
 *.pt
 *.pth
 *.ckpt2015/
@@ -38,7 +35,7 @@ mels/
 mels_test/
 midi/
 
-# Force-track generated outputs (unignore so we can commit them)
+# Force-track generated outputs 
 !EDA/
 !EDA/**
 !mels/
