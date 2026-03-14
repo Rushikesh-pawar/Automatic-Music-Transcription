@@ -1,9 +1,11 @@
 # MAESTRO v3 — Dataset Notes
 
-This workspace uses the MAESTRO v3 dataset (MIDI + aligned audio) as the ground-truth target for Automatic Music Transcription (AMT) experiments.
+We are using the MAESTRO v3 dataset (MIDI + aligned audio) as the ground-truth target for Automatic Music Transcription (AMT) for our project.
 
 Key points:
 - MAESTRO v3 contains paired waveform (.wav) and MIDI (.midi/.mid) files recorded from Yamaha Disklavier pianos and aligned. It is commonly used for supervised AMT research.
+- The dataset contains about 200 hours of paired audio and MIDI recordings from ten years of International Piano-e-Competition
+- It is 120 GB dataset but we are using a subset in beginning to check if everything is working well. 
 - For this project we reference the dataset as provided (audio + MIDI). We only use the audio to create mel-spectrogram inputs and the MIDI to create 88-key piano-roll targets.
  - For this project we reference the dataset as provided (audio + MIDI). Place the raw files under `Audio Files/2015/` — the preprocessing scripts expect audio and MIDI in that folder by default. We use the audio to create mel-spectrogram inputs and the MIDI to create 88-key piano-roll targets.
 
@@ -17,4 +19,3 @@ Files created by preprocessing scripts:
 - `pianorolls/` — 88-key piano-roll `.npy` arrays and `.npz` paired files when mel available.
 - `pianorolls/pairs.csv` — CSV listing MIDI, piano-roll, and mel file paths.
 
-If you need alternative labeling (velocity-preserving, onset/offset maps, or multi-instrument splits), we can extend the pipeline accordingly.
