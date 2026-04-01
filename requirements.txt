@@ -3,5 +3,8 @@ soundfile
 numpy
 matplotlib
 tqdm
-
 pretty_midi
+torch
+torchvision
+pandas
+tensorboard

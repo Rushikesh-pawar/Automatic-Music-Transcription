@@ -31,14 +31,13 @@ __pycache__/
 *.pt
 *.pth
 *.ckpt2015/
-mels/
 mels_test/
 midi/
 
-# Force-track generated outputs 
+# Force-track EDA outputs (images, reports)
 !EDA/
 !EDA/**
-!mels/
-!mels/**
-!pianorolls/
-!pianorolls/**
+
+# outputs/ and pianorolls/ contain large binary files — do not commit
+outputs/
+pianorolls/
