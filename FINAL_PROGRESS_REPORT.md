@@ -1,6 +1,6 @@
 # Automatic Music Transcription — Progress Report
 
-**Course:** Foundations of AI
+
 **Project:** Automatic Music Transcription (AMT)
 
 ---
@@ -41,7 +41,7 @@ Key insight from EDA: the 5% note density revealed a severe class imbalance (95%
 **`scripts/model.py`** defines three approaches to frame-level transcription, all sharing the same interface (`forward` returns `logits, probs` of shape `(batch, 88, time)`):
 
 #### Model 1: Traditional Signal Processing (`traditional`)
-A parameter-free baseline using classical audio analysis. The approach combines **Harmonic Product Spectrum (HPS)** — which reinforces fundamental frequencies by multiplying harmonically downsampled copies of the spectrum — with per-key energy thresholding. This method requires no training data and is fully interpretable. A stub implementation is in place; the complete signal-processing pipeline is being developed by a collaborator and will be integrated before final submission.
+A parameter-free baseline using classical audio analysis. The approach combines **Harmonic Product Spectrum (HPS)** — which reinforces fundamental frequencies by multiplying harmonically downsampled copies of the spectrum — with per-key energy thresholding. This method requires no training data and is fully interpretable. A stub implementation is in place; we are working on the complete signal-processing pipeline and will be integrated before final submission.
 
 #### Model 2: CNN + BiLSTM (`cnn_bilstm`) — 3.1M parameters
 A CNN encoder (two Conv1d layers with BatchNorm and dropout) feeds into a **2-layer Bidirectional LSTM** with 256 hidden units per direction. The BiLSTM propagates hidden state across the entire chunk, allowing it to model the full temporal lifecycle of a note (attack → sustain → release). Bidirectionality gives each frame access to both past and future context.
@@ -83,7 +83,7 @@ The same CNN encoder feeds into a **2-layer Transformer encoder** (8-head self-a
 
 ## What We Plan to Do Before Final Submission
 
-1. **Integrate the traditional signal processing pipeline** — our collaborator is completing the NMF-based and spectral peak-picking implementations. Once received, we will replace the stub in `TraditionalSP._sp_transcribe()` and run it on the full validation set to produce comparable F1 scores.
+1. **Integrate the traditional signal processing pipeline** — we are working on the NMF-based and spectral peak-picking implementations. Once received, we will replace the stub in `TraditionalSP._sp_transcribe()` and run it on the full validation set to produce comparable F1 scores.
 
 2. **Final three-way comparison** — run all three models on the held-out 26 validation songs, produce a unified comparison table (F1, Precision, Recall, inference speed), and generate side-by-side comparison PNG images using the inference script.
 
