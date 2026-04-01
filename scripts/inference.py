@@ -2,9 +2,14 @@
 Inference script: transcribe any audio file to a piano roll.
 
 Usage:
+    # Learned models (require a trained checkpoint):
     python scripts/inference.py --audio path/to/song.wav \
                                  --model-path outputs/checkpoints/best_cnn_transformer.pt \
                                  --model-type cnn_transformer
+
+    # Traditional signal processing (no checkpoint needed):
+    python scripts/inference.py --audio path/to/song.wav \
+                                 --model-type traditional
 
 Optional flags:
     --midi-path path/to/ground_truth.midi   # show predicted vs ground truth side-by-side
@@ -64,7 +69,7 @@ def normalize(mel: np.ndarray) -> np.ndarray:
 
 
 # ---------------------------------------------------------------------------
-# Inference
+# Inference — learned models (CNNBiLSTM / CNNTransformer)
 # ---------------------------------------------------------------------------
 
 def transcribe(model: torch.nn.Module,
@@ -101,6 +106,71 @@ def transcribe(model: torch.nn.Module,
             probs_full[:, start:end] = p[0].cpu().numpy()[:, :chunk_len]
 
     return (probs_full >= threshold).astype(np.float32), probs_full
+
+
+# ---------------------------------------------------------------------------
+# Inference — traditional signal processing (pYIN pitch detection)
+# ---------------------------------------------------------------------------
+
+def transcribe_traditional(audio_path: str,
+                            n_frames: int,
+                            threshold: float = 0.5) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Traditional signal processing transcription using pYIN pitch detection
+    and onset-based note segmentation (teammate's approach).
+
+    pYIN tracks a single F0 per frame, so it works best on melodic lines
+    rather than dense chords — this is the key limitation vs learned models,
+    and makes the comparison instructive for showing why CNNs help.
+
+    The output uses the same time grid as the mel spectrogram (hop_length=512)
+    so piano rolls are directly comparable to CNN model outputs.
+
+    Returns
+    -------
+    piano_roll_binary : (88, n_frames) float32  — thresholded 0/1
+    piano_roll_probs  : (88, n_frames) float32  — voicing probability at each key
+    """
+    print("  Running pYIN pitch detection (this may take a moment) …")
+    y, _ = librosa.load(audio_path, sr=SR, mono=True)
+
+    # pYIN: frame-level F0 + voicing probability on the same hop grid as mel
+    f0, voiced_flag, voiced_prob = librosa.pyin(
+        y,
+        fmin=librosa.note_to_hz('A0'),   # MIDI 21 — lowest piano key
+        fmax=librosa.note_to_hz('C8'),   # MIDI 108 — highest piano key
+        sr=SR,
+        hop_length=HOP_LENGTH,
+        frame_length=N_FFT,
+    )
+
+    # Onset detection — used to extend note activations across the full note
+    # duration instead of only voiced frames (sustain after attack goes silent)
+    onsets = librosa.onset.onset_detect(y=y, sr=SR, hop_length=HOP_LENGTH,
+                                        units='frames')
+    onset_set = set(onsets.tolist())
+
+    # Build piano roll: for each frame, if pYIN is voiced assign its pitch
+    probs = np.zeros((88, n_frames), dtype=np.float32)
+    T = min(len(f0), n_frames)
+
+    current_pitch_idx = None   # key index of the active note
+
+    for t in range(T):
+        if voiced_flag[t] and not np.isnan(f0[t]):
+            midi_pitch = int(round(librosa.hz_to_midi(f0[t])))
+            if PIANO_LOW <= midi_pitch < PIANO_LOW + 88:
+                key_idx = midi_pitch - PIANO_LOW
+                probs[key_idx, t] = float(voiced_prob[t])
+                current_pitch_idx = key_idx
+        elif current_pitch_idx is not None and t not in onset_set:
+            # Sustain the last detected pitch until the next onset
+            # (handles the decay phase where pYIN loses voicing)
+            probs[current_pitch_idx, t] = 0.3   # low confidence for sustained frames
+        else:
+            current_pitch_idx = None   # silence or new onset resets the note
+
+    return (probs >= threshold).astype(np.float32), probs
 
 
 # ---------------------------------------------------------------------------
@@ -201,11 +271,17 @@ def save_comparison_png(predicted: np.ndarray, ground_truth: np.ndarray,
     rec  = tp / (tp + fn + 1e-6)
     f1   = 2 * prec * rec / (prec + rec + 1e-6)
 
+    model_label = {
+        'traditional':    'Traditional SP  (pYIN + onset detection)',
+        'cnn_bilstm':     'CNN + BiLSTM',
+        'cnn_transformer':'CNN + Transformer',
+    }.get(model_type, model_type)
+
     fig_w = max(14, dur_sec * 0.5)
     fig, axes = plt.subplots(2, 1, figsize=(fig_w, 9),
                              sharex=True, sharey=True)
     fig.suptitle(
-        f'Piano Roll Comparison  —  model: {model_type}\n'
+        f'Piano Roll Comparison  —  {model_label}\n'
         f'Frame-level  P={prec:.3f}  R={rec:.3f}  F1={f1:.3f}',
         fontsize=12, fontweight='bold', y=1.01
     )
@@ -283,14 +359,17 @@ def print_stats(piano_roll: np.ndarray) -> None:
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Transcribe an audio file to a piano roll using a trained model')
+        description='Transcribe an audio file to a piano roll using a trained model '
+                    'or traditional signal processing.')
     parser.add_argument('--audio', required=True,
                         help='Path to input audio file (.wav, .mp3, .flac, …)')
-    parser.add_argument('--model-path', required=True,
-                        help='Path to saved model checkpoint (.pt)')
+    parser.add_argument('--model-path', default=None,
+                        help='Path to saved model checkpoint (.pt). '
+                             'Required for cnn_bilstm and cnn_transformer. '
+                             'Not needed for --model-type traditional.')
     parser.add_argument('--model-type', default='cnn_transformer',
                         choices=['traditional', 'cnn_bilstm', 'cnn_transformer'],
-                        help='Architecture that was used to train the checkpoint')
+                        help='Transcription method to use.')
     parser.add_argument('--threshold', type=float, default=0.5,
                         help='Probability threshold for note activation (default 0.5). '
                              'Lower values detect more notes but increase false positives.')
@@ -305,16 +384,12 @@ def main():
     parser.add_argument('--device', default='cuda' if torch.cuda.is_available() else 'cpu')
     args = parser.parse_args()
 
+    # Validate: learned models need a checkpoint
+    if args.model_type != 'traditional' and args.model_path is None:
+        sys.exit(f"--model-path is required for --model-type {args.model_type}")
+
     os.makedirs(args.output_dir, exist_ok=True)
     device = torch.device(args.device)
-
-    # ---- Load model ----
-    model = get_model(args.model_type).to(device)
-    state = torch.load(args.model_path, map_location=device)
-    model.load_state_dict(state)
-    model.eval()
-    print(f"Model  : {args.model_type}")
-    print(f"Device : {device}")
 
     # ---- Load & process audio ----
     if not os.path.isfile(args.audio):
@@ -322,14 +397,26 @@ def main():
 
     print(f"\nLoading audio: {args.audio}")
     mel = audio_to_mel(args.audio)
-    mel = normalize(mel)
-    duration = mel.shape[-1] * HOP_LENGTH / SR
+    n_frames = mel.shape[-1]
+    duration = n_frames * HOP_LENGTH / SR
     print(f"Duration : {duration:.1f} s  |  Mel shape : {mel.shape}")
 
     # ---- Transcribe ----
-    print(f"\nTranscribing (threshold={args.threshold}) …")
-    piano_roll_bin, piano_roll_probs = transcribe(
-        model, mel, device=device, threshold=args.threshold)
+    print(f"\nTranscribing with: {args.model_type}  (threshold={args.threshold}) …")
+
+    if args.model_type == 'traditional':
+        piano_roll_bin, piano_roll_probs = transcribe_traditional(
+            args.audio, n_frames, threshold=args.threshold)
+    else:
+        mel_norm = normalize(mel)
+        model = get_model(args.model_type).to(device)
+        state = torch.load(args.model_path, map_location=device)
+        model.load_state_dict(state)
+        model.eval()
+        print(f"  Checkpoint : {args.model_path}")
+        print(f"  Device     : {device}")
+        piano_roll_bin, piano_roll_probs = transcribe(
+            model, mel_norm, device=device, threshold=args.threshold)
 
     print("\nTranscription statistics:")
     print_stats(piano_roll_bin)
