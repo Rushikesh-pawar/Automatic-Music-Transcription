@@ -113,7 +113,7 @@ def transcribe_traditional(audio_path: str, n_frames: int,
     return (probs >= threshold).astype(np.float32)
 
 
-def find_audio(midi_path: str) -> str | None:
+def find_audio(midi_path: str):
     """
     Find the audio file that corresponds to a MIDI file.
     Tries common audio extensions in the same directory.

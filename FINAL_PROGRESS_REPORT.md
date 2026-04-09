@@ -1,6 +1,6 @@
 # Automatic Music Transcription — Progress Report
 
-
+**Course:** Foundations of AI
 **Project:** Automatic Music Transcription (AMT)
 
 ---
@@ -41,23 +41,29 @@ Key insight from EDA: the 5% note density revealed a severe class imbalance (95%
 **`scripts/model.py`** defines three approaches to frame-level transcription, all sharing the same interface (`forward` returns `logits, probs` of shape `(batch, 88, time)`):
 
 #### Model 1: Traditional Signal Processing (`traditional`)
-A parameter-free baseline using classical audio analysis. The approach combines **Harmonic Product Spectrum (HPS)** — which reinforces fundamental frequencies by multiplying harmonically downsampled copies of the spectrum — with per-key energy thresholding. This method requires no training data and is fully interpretable. A stub implementation is in place; we are working on the complete signal-processing pipeline and will be integrated before final submission.
+A parameter-free baseline using classical audio analysis. The implementation uses **pYIN** (probabilistic YIN algorithm) for monophonic pitch detection combined with onset detection for note segmentation. pYIN estimates the fundamental frequency (F0) at each audio frame with a voicing probability, and onset detection extends note activations across the sustain phase. This method requires no training data and is fully interpretable, but is inherently **monophonic** — it can only track one pitch at a time — making it fundamentally limited for polyphonic piano music.
+
+**Measured validation results (26 unseen songs):** Precision = 0.563, Recall = 0.027, **F1 = 0.050**
+
+The high precision and near-zero recall tell a clear story: when pYIN detects a note, the pitch is usually correct — but piano music typically has 4–6 simultaneous notes per frame, and pYIN can only find one. It misses ~97% of all notes.
 
 #### Model 2: CNN + BiLSTM (`cnn_bilstm`) — 3.1M parameters
 A CNN encoder (two Conv1d layers with BatchNorm and dropout) feeds into a **2-layer Bidirectional LSTM** with 256 hidden units per direction. The BiLSTM propagates hidden state across the entire chunk, allowing it to model the full temporal lifecycle of a note (attack → sustain → release). Bidirectionality gives each frame access to both past and future context.
 
-**Best validation F1: 0.7753** (file-level split, 26 unseen songs)
+**Measured validation results (26 unseen songs):** Precision = 0.691, Recall = 0.902, **F1 = 0.781 ± 0.039**
 
 #### Model 3: CNN + Transformer (`cnn_transformer`) — 2.0M parameters
 The same CNN encoder feeds into a **2-layer Transformer encoder** (8-head self-attention, 1024-dim feedforward, sinusoidal positional encoding). Self-attention directly connects any two frames in a single operation, learning long-range harmonic dependencies that the LSTM must propagate through hundreds of gate operations. It also uses fewer parameters than the BiLSTM.
 
-**Best validation F1: 0.8160** (after 50 total epochs including fine-tuning at lr=0.0005)
+**Measured validation results (26 unseen songs):** Precision = 0.750, Recall = 0.899, **F1 = 0.816 ± 0.037** (after 50 total epochs including fine-tuning at lr=0.0005)
 
-| Model | Params | Best F1 | Precision | Recall |
-|---|---|---|---|---|
-| Traditional SP | 0 | (pending) | — | — |
-| CNN + BiLSTM | 3.1M | 0.7753 | 0.68 | 0.90 |
-| CNN + Transformer | 2.0M | **0.8160** | **0.75** | 0.89 |
+| Model | Params | Precision | Recall | F1 (mean) | F1 (median) |
+|---|---|---|---|---|---|
+| Traditional SP (pYIN) | 0 | 0.563 | 0.027 | 0.050 ± 0.040 | 0.035 |
+| CNN + BiLSTM | 3.1M | 0.691 | 0.902 | 0.781 ± 0.039 | 0.786 |
+| CNN + Transformer | 2.0M | **0.750** | 0.899 | **0.816 ± 0.037** | **0.822** |
+
+The results illustrate a clear progression. The 15× F1 improvement from traditional to learned models (0.05 → 0.78) comes entirely from the CNN's ability to detect multiple simultaneous pitches — something monophonic pitch detection cannot do. The further gain from BiLSTM to Transformer (+0.035 F1) reflects the benefit of global self-attention: the Transformer's higher precision (0.75 vs 0.69) shows it produces fewer false positives, likely because attention can directly model harmonic relationships across the full 256-frame context window.
 
 ### 5. Training Infrastructure
 
@@ -83,12 +89,10 @@ The same CNN encoder feeds into a **2-layer Transformer encoder** (8-head self-a
 
 ## What We Plan to Do Before Final Submission
 
-1. **Integrate the traditional signal processing pipeline** — we are working on the NMF-based and spectral peak-picking implementations. Once received, we will replace the stub in `TraditionalSP._sp_transcribe()` and run it on the full validation set to produce comparable F1 scores.
+1. **Generate side-by-side comparison visualisations** — run all three models through `scripts/inference.py` on the same audio files with `--midi-path` to produce stacked comparison PNGs showing ground truth vs. predicted piano rolls. These images will make the precision/recall trade-offs directly visible.
 
-2. **Final three-way comparison** — run all three models on the held-out 26 validation songs, produce a unified comparison table (F1, Precision, Recall, inference speed), and generate side-by-side comparison PNG images using the inference script.
+2. **Error analysis** — identify which note ranges, polyphony levels, and musical contexts each model struggles with. The traditional method's near-zero recall on dense chords is already clear; we plan to quantify how CNN model performance varies across low, mid, and high register and across polyphony levels.
 
-3. **Error analysis** — identify which note ranges, polyphony levels, and musical contexts each model struggles with. We expect the traditional method to perform worse on dense chords, and the CNN models to struggle more on very sparse passages.
+3. **Continue CNN + Transformer training** — the model was still improving at epoch 50 (F1=0.8160). Additional fine-tuning epochs may push it higher.
 
-4. **Continue CNN + Transformer training** — the model was still improving at the end of training (F1=0.8160, epoch 50). We plan to run additional fine-tuning epochs to see how high it can go.
-
-5. **Written final report** — compile the comparison results, discuss the trade-offs between traditional and learned approaches, and reflect on what the F1 gap between CNN + BiLSTM and CNN + Transformer tells us about the importance of global vs. sequential temporal context in music transcription.
+4. **Written final report** — compile the full comparison results, discuss why pYIN's monophonic assumption makes it fundamentally unsuitable for polyphonic transcription, and reflect on what the F1 gap between CNN + BiLSTM and CNN + Transformer tells us about the importance of global vs. sequential temporal context in music.
