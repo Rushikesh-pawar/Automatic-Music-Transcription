@@ -6,7 +6,7 @@ An end-to-end deep learning pipeline for automatic piano transcription using the
 
 ## Technical Paper - Automatic Piano Transcription: A Comparison of Traditional Signal Processing and CNN-Based Deep Learning Models
 
-Check the files in repository for PDF version of our technical paper
+Please find the PDF version of our technical paper in reports folder
 
 ## Results Summary
 
