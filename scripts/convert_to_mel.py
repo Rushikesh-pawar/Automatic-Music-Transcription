@@ -1,15 +1,32 @@
 import argparse
 from pathlib import Path
 import numpy as np
-import librosa
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import torch
 import torchaudio
 import torchaudio.transforms as T
 
-def compute_mel(path, sr=22050, n_fft=2048, hop_length=512, n_mels=128, fmax=8000):
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+def get_device():
+    if torch.cuda.is_available():
+        device = torch.device('cuda')
+        print(f"Using GPU: {torch.cuda.get_device_name(0)}")
+    else:
+        device = torch.device('cpu')
+        print("CUDA not available — using CPU")
+    return device
+
+def build_mel_transform(sr, n_fft, hop_length, n_mels, fmax, device):
+
+    return T.MelSpectrogram(
+        sample_rate=sr,
+        n_fft=n_fft,
+        hop_length=hop_length,
+        n_mels=n_mels,
+        f_max=fmax,
+    ).to(device)
+
+def compute_mel(path, mel_transform, amp_to_db, device, sr=22050):
 
     waveform, orig_sr = torchaudio.load(path)
     waveform = waveform.mean(dim=0, keepdim=True)
@@ -19,19 +36,11 @@ def compute_mel(path, sr=22050, n_fft=2048, hop_length=512, n_mels=128, fmax=800
 
     waveform = waveform.to(device)
 
-    mel_transform = T.MelSpectrogram(
-        sample_rate=sr,
-        n_fft=n_fft,
-        hop_length=hop_length,
-        n_mels=n_mels,
-        f_max=fmax,
-    ).to(device)
-
-    mel = mel_transform(waveform)
-    mel_db = T.AmplitudeToDB(stype='power', top_db=80)(mel)
+    with torch.no_grad():
+        mel = mel_transform(waveform)
+        mel_db = amp_to_db(mel)
 
     return mel_db.squeeze(0).cpu().numpy()
-
 
 def save_mel(mel, out_path, save_png=False):
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -45,18 +54,17 @@ def save_mel(mel, out_path, save_png=False):
         plt.savefig(png_path, bbox_inches='tight', pad_inches=0)
         plt.close()
 
-
 def main():
     parser = argparse.ArgumentParser(description='Convert audio files to mel spectrograms (log-power).')
-    parser.add_argument('--input-dir', type=Path, default=Path('Audio Files/2015'), help='Input folder containing audio files (default: Audio Files/2015)')
-    parser.add_argument('--output-dir', type=Path, default=Path('mels'), help='Output folder for mel arrays')
-    parser.add_argument('--sr', type=int, default=22050)
-    parser.add_argument('--n-mels', type=int, default=128)
-    parser.add_argument('--n-fft', type=int, default=2048)
-    parser.add_argument('--hop-length', type=int, default=512)
-    parser.add_argument('--fmax', type=int, default=8000)
-    parser.add_argument('--save-png', action='store_true', help='Also save a PNG image of the mel')
-    parser.add_argument('--exts', nargs='+', default=['.wav', '.mp3', '.flac'], help='Audio file extensions to search')
+    parser.add_argument('--input-dir',   type=Path, default=Path('Audio Files/2015'))
+    parser.add_argument('--output-dir',  type=Path, default=Path('mels'))
+    parser.add_argument('--sr',          type=int,  default=22050)
+    parser.add_argument('--n-mels',      type=int,  default=128)
+    parser.add_argument('--n-fft',       type=int,  default=2048)
+    parser.add_argument('--hop-length',  type=int,  default=512)
+    parser.add_argument('--fmax',        type=int,  default=8000)
+    parser.add_argument('--save-png',    action='store_true')
+    parser.add_argument('--exts',        nargs='+', default=['.wav', '.mp3', '.flac'])
     args = parser.parse_args()
 
     files = []
@@ -70,15 +78,21 @@ def main():
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
+    device = get_device()
+
+    mel_transform = build_mel_transform(
+        args.sr, args.n_fft, args.hop_length, args.n_mels, args.fmax, device
+    )
+    amp_to_db = T.AmplitudeToDB(stype='power', top_db=80).to(device)
+
     for f in tqdm(files, desc='Processing'):
         try:
-            mel = compute_mel(f, sr=args.sr, n_fft=args.n_fft, hop_length=args.hop_length, n_mels=args.n_mels, fmax=args.fmax)
+            mel = compute_mel(f, mel_transform, amp_to_db, device, sr=args.sr)
             rel = f.relative_to(args.input_dir)
             out_path = args.output_dir.joinpath(rel).with_suffix('')
             save_mel(mel, out_path, save_png=args.save_png)
         except Exception as e:
             print(f'Error processing {f}: {e}')
-
 
 if __name__ == '__main__':
     main()
