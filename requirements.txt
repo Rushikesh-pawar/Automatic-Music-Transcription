@@ -4,7 +4,8 @@ numpy
 matplotlib
 tqdm
 pretty_midi
-torch
+torch==2.6.0
+torchaudio==2.6.0
 torchvision
 pandas
 tensorboard

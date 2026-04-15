@@ -4,13 +4,33 @@ import numpy as np
 import librosa
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-
+import torch
+import torchaudio
+import torchaudio.transforms as T
 
 def compute_mel(path, sr=22050, n_fft=2048, hop_length=512, n_mels=128, fmax=8000):
-    y, _ = librosa.load(path, sr=sr, mono=True)
-    S = librosa.feature.melspectrogram(y=y, sr=sr, n_fft=n_fft, hop_length=hop_length, n_mels=n_mels, fmax=fmax)
-    S_db = librosa.power_to_db(S, ref=np.max)
-    return S_db
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    waveform, orig_sr = torchaudio.load(path)
+    waveform = waveform.mean(dim=0, keepdim=True)
+
+    if orig_sr != sr:
+        waveform = torchaudio.functional.resample(waveform, orig_sr, sr)
+
+    waveform = waveform.to(device)
+
+    mel_transform = T.MelSpectrogram(
+        sample_rate=sr,
+        n_fft=n_fft,
+        hop_length=hop_length,
+        n_mels=n_mels,
+        f_max=fmax,
+    ).to(device)
+
+    mel = mel_transform(waveform)
+    mel_db = T.AmplitudeToDB(stype='power', top_db=80)(mel)
+
+    return mel_db.squeeze(0).cpu().numpy()
 
 
 def save_mel(mel, out_path, save_png=False):
